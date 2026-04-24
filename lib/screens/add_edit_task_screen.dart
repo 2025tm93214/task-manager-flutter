@@ -3,8 +3,7 @@ import '../models/task_model.dart';
 import '../services/task_service.dart';
 
 class AddEditTaskScreen extends StatefulWidget {
-  final Task? task; // null = add, non-null = edit
-
+  final Task? task;
   const AddEditTaskScreen({super.key, this.task});
 
   @override
@@ -14,7 +13,7 @@ class AddEditTaskScreen extends StatefulWidget {
 class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
-  final _descriptionController = TextEditingController();
+  final _descController = TextEditingController();
   final TaskService _taskService = TaskService();
   bool _isLoading = false;
   bool _isCompleted = false;
@@ -26,7 +25,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
     super.initState();
     if (_isEditing) {
       _titleController.text = widget.task!.title;
-      _descriptionController.text = widget.task!.description;
+      _descController.text = widget.task!.description;
       _isCompleted = widget.task!.isCompleted;
     }
   }
@@ -34,54 +33,48 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
   @override
   void dispose() {
     _titleController.dispose();
-    _descriptionController.dispose();
+    _descController.dispose();
     super.dispose();
   }
 
-  Future<void> _saveTask() async {
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
-
     try {
       if (_isEditing) {
-        final updatedTask = Task(
+        await _taskService.updateTask(Task(
           objectId: widget.task!.objectId,
           title: _titleController.text.trim(),
-          description: _descriptionController.text.trim(),
+          description: _descController.text.trim(),
           isCompleted: _isCompleted,
           createdAt: widget.task!.createdAt,
-        );
-        await _taskService.updateTask(updatedTask);
+        ));
       } else {
-        final newTask = Task(
+        await _taskService.createTask(Task(
           title: _titleController.text.trim(),
-          description: _descriptionController.text.trim(),
+          description: _descController.text.trim(),
           isCompleted: false,
-        );
-        await _taskService.createTask(newTask);
+        ));
       }
-
       if (mounted) {
         Navigator.pop(context, true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_isEditing ? 'Task updated!' : 'Task created!'),
-            backgroundColor: Colors.green.shade700,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(_isEditing ? 'Task updated!' : 'Task created!'),
+          backgroundColor: const Color(0xFF2E7D32),
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red.shade700,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: const Color(0xFFE53935),
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -91,10 +84,19 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
+        backgroundColor: const Color(0xFF1565C0),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+              color: Colors.white, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Text(
           _isEditing ? 'Edit Task' : 'New Task',
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(
+              fontWeight: FontWeight.w700, fontSize: 20, color: Colors.white),
         ),
       ),
       body: SingleChildScrollView(
@@ -102,142 +104,212 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
         child: Form(
           key: _formKey,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header card
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF6C63FF), Color(0xFF3F3D99)],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _isEditing ? Icons.edit_note : Icons.add_task,
-                      color: Colors.white,
-                      size: 40,
-                    ),
-                    const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _isEditing ? 'Editing Task' : 'Create New Task',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          _isEditing ? 'Update the task details below' : 'Fill in the details below',
-                          style: const TextStyle(color: Colors.white70, fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 28),
-
-              // Title
-              const Text(
-                'Task Title *',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-              ),
+              // ── Title field ──
+              _FieldLabel(
+                  label: 'Task Title',
+                  icon: Icons.title_rounded,
+                  required: true),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _titleController,
                 textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  hintText: 'e.g., Submit assignment, Study for exam...',
-                  prefixIcon: Icon(Icons.title),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Title is required';
-                  }
-                  if (value.trim().length < 3) {
+                style: const TextStyle(fontSize: 15),
+                decoration: _inputDeco(
+                    hint: 'e.g. Submit assignment, Study for exam...'),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return 'Title is required';
+                  if (v.trim().length < 3)
                     return 'Title must be at least 3 characters';
-                  }
                   return null;
                 },
               ),
               const SizedBox(height: 20),
 
-              // Description
-              const Text(
-                'Description (Optional)',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-              ),
+              // ── Description field ──
+              _FieldLabel(
+                  label: 'Description',
+                  icon: Icons.notes_rounded,
+                  required: false),
               const SizedBox(height: 8),
               TextFormField(
-                controller: _descriptionController,
+                controller: _descController,
                 maxLines: 4,
                 textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  hintText: 'Add more details about this task...',
-                  prefixIcon: Padding(
-                    padding: EdgeInsets.only(bottom: 60),
-                    child: Icon(Icons.description_outlined),
-                  ),
-                  alignLabelWithHint: true,
-                ),
+                style: const TextStyle(fontSize: 15),
+                decoration: _inputDeco(
+                    hint: 'Add more details about this task (optional)...'),
               ),
               const SizedBox(height: 20),
 
-              // Completed toggle (only when editing)
+              // ── Status toggle (edit only) ──
               if (_isEditing) ...[
+                _FieldLabel(
+                    label: 'Status',
+                    icon: Icons.flag_outlined,
+                    required: false),
+                const SizedBox(height: 8),
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
                   ),
                   child: SwitchListTile(
-                    title: const Text(
-                      'Mark as Completed',
-                      style: TextStyle(fontWeight: FontWeight.w500),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    title: Text(
+                      _isCompleted ? 'Completed' : 'In Progress',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: _isCompleted
+                              ? const Color(0xFF2E7D32)
+                              : const Color(0xFFF57F17)),
                     ),
-                    subtitle: Text(_isCompleted ? 'Task is completed' : 'Task is still pending'),
+                    subtitle: Text(
+                      _isCompleted
+                          ? 'This task has been finished'
+                          : 'This task is still pending',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade500),
+                    ),
                     value: _isCompleted,
-                    activeColor: const Color(0xFF6C63FF),
+                    activeColor: const Color(0xFF1565C0),
                     onChanged: (val) => setState(() => _isCompleted = val),
-                    secondary: Icon(
-                      _isCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
-                      color: _isCompleted ? const Color(0xFF6C63FF) : Colors.grey,
+                    secondary: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: _isCompleted
+                            ? const Color(0xFFE8F5E9)
+                            : const Color(0xFFFFF8E1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        _isCompleted
+                            ? Icons.check_circle_outline_rounded
+                            : Icons.radio_button_unchecked_rounded,
+                        color: _isCompleted
+                            ? const Color(0xFF2E7D32)
+                            : const Color(0xFFF57F17),
+                        size: 20,
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 20),
               ],
 
-              // Save Button
-              ElevatedButton.icon(
-                onPressed: _isLoading ? null : _saveTask,
-                icon: _isLoading
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : Icon(_isEditing ? Icons.save : Icons.add_task),
-                label: Text(
-                  _isEditing ? 'UPDATE TASK' : 'CREATE TASK',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              // ── Buttons ──
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _save,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1565C0),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2.5, color: Colors.white))
+                      : Text(
+                          _isEditing ? 'Save Changes' : 'Create Task',
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
                 ),
               ),
               const SizedBox(height: 12),
-              OutlinedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('CANCEL'),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.grey.shade300),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Text('Cancel',
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade600)),
+                ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  InputDecoration _inputDeco({required String hint}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade200),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade200),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF1565C0), width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE53935)),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide:
+            const BorderSide(color: Color(0xFFE53935), width: 1.5),
+      ),
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool required;
+  const _FieldLabel(
+      {required this.label, required this.icon, required this.required});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: const Color(0xFF1565C0)),
+        const SizedBox(width: 6),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1A1A2E))),
+        if (required)
+          const Text(' *',
+              style: TextStyle(
+                  color: Color(0xFFE53935),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13)),
+      ],
     );
   }
 }
